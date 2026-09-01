@@ -62,11 +62,23 @@ def unquote_identifier(s: str) -> str:
     return s
 
 
+COMMON_SQL_RESERVED = {
+    "USER", "CURRENT_USER", "SESSION_USER", "SYSTEM_USER",
+    "PASSWORD", "KEY", "INDEX", "DESC", "ASC", "TYPE", "STATUS", "ROLE", "VALUE", "VALUES",
+}
+
+
 def patch_completers():
-    """Patch litecli and pgcli completers to support identifier quote triggers (\", `, [)."""
+    """Patch litecli and pgcli completers to support identifier quote triggers (\", `, [) and common SQL reserved words."""
     try:
         from litecli.sqlcompleter import SQLCompleter
         import litecli.sqlcompleter as sc
+
+        orig_litecli_init = SQLCompleter.__init__
+        def patched_litecli_init(self, *args, **kwargs):
+            orig_litecli_init(self, *args, **kwargs)
+            self.reserved_words.update(COMMON_SQL_RESERVED)
+        SQLCompleter.__init__ = patched_litecli_init
 
         def litecli_find_matches(
             text,
@@ -140,6 +152,12 @@ def patch_completers():
     try:
         from pgcli.pgcompleter import PGCompleter, _Candidate, Match
         import pgcli.pgcompleter as pc
+
+        orig_pg_init = PGCompleter.__init__
+        def patched_pg_init(self, *args, **kwargs):
+            orig_pg_init(self, *args, **kwargs)
+            self.reserved_words.update(COMMON_SQL_RESERVED)
+        PGCompleter.__init__ = patched_pg_init
 
         def pgcli_find_matches(self, text, collection, mode="fuzzy", meta=None):
             if not collection:
