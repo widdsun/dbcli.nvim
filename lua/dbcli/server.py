@@ -13,6 +13,7 @@ import time
 import logging
 import traceback
 import threading
+from urllib.parse import urlparse, unquote
 from typing import Dict, Any, List, Optional, Tuple
 
 # Automatically add Homebrew, pipx, and virtualenv site-packages to sys.path
@@ -20,10 +21,13 @@ def _setup_python_paths():
     candidates = [
         "/opt/homebrew/Cellar/pgcli/*/libexec/lib/python*/site-packages",
         "/opt/homebrew/Cellar/litecli/*/libexec/lib/python*/site-packages",
+        "/opt/homebrew/Cellar/mycli/*/libexec/lib/python*/site-packages",
         "/usr/local/Cellar/pgcli/*/libexec/lib/python*/site-packages",
         "/usr/local/Cellar/litecli/*/libexec/lib/python*/site-packages",
+        "/usr/local/Cellar/mycli/*/libexec/lib/python*/site-packages",
         os.path.expanduser("~/.local/pipx/venvs/pgcli/lib/python*/site-packages"),
         os.path.expanduser("~/.local/pipx/venvs/litecli/lib/python*/site-packages"),
+        os.path.expanduser("~/.local/pipx/venvs/mycli/lib/python*/site-packages"),
     ]
     for pattern in candidates:
         for p in glob.glob(pattern):
@@ -60,6 +64,23 @@ def unquote_identifier(s: str) -> str:
        (s.startswith('[') and s.endswith(']')):
         return s[1:-1]
     return s
+
+
+def parse_mysql_uri(uri: str) -> Dict[str, Any]:
+    """Parse mysql:// or mariadb:// URI into core 5 connection parameters."""
+    u = urlparse(uri)
+    dbname = u.path.lstrip("/") if u.path else ""
+    user = unquote(u.username) if u.username else None
+    password = unquote(u.password) if u.password else None
+    host = u.hostname or "localhost"
+    port = u.port or 3306
+    return {
+        "database": dbname,
+        "user": user,
+        "password": password,
+        "host": host,
+        "port": int(port),
+    }
 
 
 COMMON_SQL_RESERVED = {
@@ -275,6 +296,79 @@ def patch_completers():
     except Exception as e:
         logger.debug(f"Failed to patch pgcli PGCompleter: {e}")
 
+    try:
+        from mycli.sqlcompleter import SQLCompleter
+        import mycli.sqlcompleter as mc
+
+        def mycli_find_matches(
+            text,
+            collection,
+            start_only=False,
+            fuzzy=True,
+            casing=None,
+            punctuations="most_punctuations",
+        ):
+            last = mc.last_word(text, include=punctuations)
+            orig_len = len(last)
+            quote_char = None
+            if last and last[0] in ('"', '`', '['):
+                quote_char = last[0]
+                clean_text = last[1:]
+            else:
+                clean_text = last
+
+            match_text = clean_text.lower()
+            completions = []
+
+            if fuzzy:
+                regex = ".*?".join(map(re.escape, match_text))
+                pat = re.compile("(%s)" % regex)
+                for item in sorted(collection):
+                    raw_item = unquote_identifier(item)
+                    r = pat.search(raw_item.lower())
+                    if r:
+                        completions.append((len(r.group()), r.start(), item, raw_item))
+            else:
+                match_end_limit = len(match_text) if start_only else None
+                for item in sorted(collection):
+                    raw_item = unquote_identifier(item)
+                    match_point = raw_item.lower().find(match_text, 0, match_end_limit)
+                    if match_point >= 0:
+                        completions.append((len(match_text), match_point, item, raw_item))
+
+            if casing == "auto":
+                casing = "lower" if clean_text and clean_text[-1].islower() else "upper"
+
+            def format_item(item, raw_item):
+                if raw_item == '*':
+                    return '*'
+                if quote_char == '"':
+                    return f'"{raw_item}"'
+                elif quote_char == '`':
+                    return f'`{raw_item}`'
+                elif quote_char == '[':
+                    return f'[{raw_item}]'
+
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"') or item.startswith('[')):
+                    return f'`{raw_item}`'
+
+                if casing == "upper":
+                    return item.upper()
+                elif casing == "lower":
+                    return item.lower()
+                return item
+
+            for x, y, item, raw_item in sorted(completions):
+                yield Completion(
+                    format_item(item, raw_item),
+                    -orig_len,
+                    display=raw_item,
+                )
+
+        SQLCompleter.find_matches = staticmethod(mycli_find_matches)
+    except Exception as e:
+        logger.debug(f"Failed to patch mycli SQLCompleter: {e}")
+
 
 patch_completers()
 
@@ -427,6 +521,8 @@ class DBEngine:
         try:
             if self.db_type == "postgres":
                 self._init_postgres()
+            elif self.db_type == "mysql":
+                self._init_mysql()
             elif self.db_type == "sqlite":
                 self._init_sqlite()
             else:
@@ -460,6 +556,40 @@ class DBEngine:
             from pgcli.pgcompleter import PGCompleter
             self.completer = PGCompleter(smart_completion=True)
             self.is_ready = True
+
+    def _init_mysql(self):
+        try:
+            from mycli.sqlexecute import SQLExecute
+            from mycli.sqlcompleter import SQLCompleter
+            from mycli.completion_refresher import CompletionRefresher
+
+            params = parse_mysql_uri(self.uri)
+            self.completer = SQLCompleter(smart_completion=True)
+            self.executor = SQLExecute(
+                database=params["database"],
+                user=params["user"],
+                password=params["password"],
+                host=params["host"],
+                port=params["port"],
+            )
+
+            refresher = CompletionRefresher()
+            def on_refreshed(new_completer):
+                with self.lock:
+                    self.completer = new_completer
+                    self.is_ready = True
+                    logger.info(f"MySQL metadata refreshed for {self.uri}")
+
+            refresher.refresh(self.executor, None, [on_refreshed])
+            self.is_ready = True
+        except ImportError as e:
+            self.last_error = f"mycli is not installed or importable. Please install via 'brew install mycli' or 'pip install mycli' ({e})"
+            logger.warning(self.last_error)
+            self._init_generic()
+        except Exception as e:
+            self.last_error = str(e)
+            logger.error(f"Failed to initialize MySQL engine for {self.uri}: {e}")
+            self._init_generic()
 
     def _init_sqlite(self):
         try:
@@ -594,6 +724,27 @@ class DBEngine:
                             output_blocks.append(f"[{status}]")
                         output_blocks.append("")
 
+                elif self.db_type == "mysql":
+                    for res in self.executor.run(query):
+                        if len(res) >= 6:
+                            title, rows, headers, status, q_text, success = res[:6]
+                        else:
+                            title, rows, headers, status = res[:4]
+                            success = True
+
+                        if not success:
+                            has_error = True
+                            error_msg = str(status or "Query execution failed")
+                            output_blocks.append(f"[ERROR] {error_msg}")
+                            continue
+
+                        if rows is not None and headers is not None:
+                            table_str = format_table(rows, headers, format_name=format_name)
+                            output_blocks.append(table_str)
+                        if status:
+                            output_blocks.append(f"[{status}]")
+                        output_blocks.append("")
+
                 elif self.db_type == "sqlite":
                     for title, rows, headers, status in self.executor.run(query):
                         if rows is not None and headers is not None:
@@ -608,6 +759,13 @@ class DBEngine:
             elapsed_ms = (time.time() - t_start) * 1000
             formatted_output = "\n".join(output_blocks).strip()
             
+            # Auto refresh metadata if DDL statement succeeded
+            if not has_error and query:
+                ddl_pattern = r'\b(CREATE|ALTER|DROP|RENAME|TRUNCATE)\b'
+                if re.search(ddl_pattern, query, re.IGNORECASE):
+                    logger.info(f"DDL statement detected, triggering background metadata refresh for {self.uri}")
+                    threading.Thread(target=self.refresh, daemon=True).start()
+
             return {
                 "success": not has_error,
                 "output": formatted_output,
@@ -633,6 +791,8 @@ class DBService:
         u = uri.strip()
         if u.startswith("postgresql://") or u.startswith("postgres://"):
             return "postgres"
+        if u.startswith("mysql://") or u.startswith("mysql2://") or u.startswith("mariadb://"):
+            return "mysql"
         if u.startswith("sqlite://") or u.startswith("sqlite:") or u.endswith(".db") or u.endswith(".sqlite") or u.endswith(".sqlite3") or u == ":memory:":
             return "sqlite"
         if os.path.isfile(os.path.expanduser(u)):

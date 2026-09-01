@@ -230,7 +230,11 @@ function M.connect(uri, bufnr)
   vim.b[bufnr].db = uri
   M.send_request("connect", { uri = uri }, function(resp)
     if resp.status == "ok" then
-      vim.notify(string.format("[dbcli] Connected to %s (%s)", resp.uri, resp.db_type), vim.log.levels.INFO)
+      if resp.error and resp.error ~= vim.NIL and resp.error ~= "" then
+        vim.notify(string.format("[dbcli] Connected to %s (%s) with warning: %s", resp.uri, resp.db_type, resp.error), vim.log.levels.WARN)
+      else
+        vim.notify(string.format("[dbcli] Connected to %s (%s)", resp.uri, resp.db_type), vim.log.levels.INFO)
+      end
     else
       vim.notify("[dbcli] Connect error: " .. tostring(resp.message or resp.error), vim.log.levels.ERROR)
     end
