@@ -44,7 +44,7 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 -- lua/plugins/dbcli.lua
 return {
   'your-username/dbcli.nvim', -- or dir = vim.fn.stdpath('config') .. '/my-plugins/dbcli.nvim'
-  ft = { 'sql', 'mysql', 'plsql' },
+  ft = 'sql',
   cmd = { 'DBExecute', 'DBConnect', 'DBDisconnect', 'DBFormat', 'DBRefresh', 'DBStatus' },
   opts = {
     table_format = 'psql',          -- Output table style ('psql', 'fancy_grid', 'markdown', 'github', 'double', 'vertical', etc.)
@@ -65,8 +65,6 @@ require('blink.cmp').setup({
   sources = {
     per_filetype = {
       sql = { 'dbcli', 'lsp' },
-      mysql = { 'dbcli', 'lsp' },
-      plsql = { 'dbcli', 'lsp' },
     },
     providers = {
       dbcli = {

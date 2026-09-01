@@ -412,7 +412,7 @@ function M.setup(opts)
 
   -- Auto commands for header detection and buffer keymaps
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "FileType" }, {
-    pattern = { "*.sql", "*.mysql", "*.plsql", "sql", "mysql", "plsql" },
+    pattern = { "*.sql", "sql" },
     callback = function(ev)
       local uri = M.get_buf_db(ev.buf)
       if uri and uri ~= "" and not vim.b[ev.buf]._dbcli_connected then
@@ -428,7 +428,7 @@ function M.setup(opts)
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_valid(buf) then
       local ft = vim.bo[buf].filetype
-      if ft == "sql" or ft == "mysql" or ft == "plsql" then
+      if ft == "sql" then
         M.bind_keymaps(buf)
       end
     end

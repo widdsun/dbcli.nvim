@@ -40,7 +40,7 @@ end
 function source:get_completions(context, callback)
   local bufnr = context.bufnr
   local ft = vim.bo[bufnr].filetype
-  if ft ~= "sql" and ft ~= "mysql" and ft ~= "plsql" then
+  if ft ~= "sql" then
     callback({ items = {} })
     return
   end
