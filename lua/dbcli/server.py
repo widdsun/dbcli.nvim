@@ -90,7 +90,7 @@ COMMON_SQL_RESERVED = {
 
 
 def patch_completers():
-    """Patch litecli and pgcli completers to support identifier quote triggers (\", `, [) and common SQL reserved words."""
+    """Patch litecli and pgcli completers to support identifier quote triggers (\", `) and common SQL reserved words."""
     try:
         from litecli.sqlcompleter import SQLCompleter
         import litecli.sqlcompleter as sc
@@ -120,7 +120,7 @@ def patch_completers():
             last = sc.last_word(text, include=punctuations)
             orig_len = len(last)
             quote_char = None
-            if last and last[0] in ('"', '`', '['):
+            if last and last[0] in ('"', '`'):
                 quote_char = last[0]
                 clean_text = last[1:]
             else:
@@ -155,13 +155,11 @@ def patch_completers():
                     return f'"{raw_item}"'
                 elif quote_char == '`':
                     return f'`{raw_item}`'
-                elif quote_char == '[':
-                    return f'[{raw_item}]'
 
                 # Use double quotes for SQLite identifier escaping by default
                 if item.startswith('`'):
                     return f'"{raw_item}"'
-                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"') or item.startswith('[')):
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"')):
                     return f'"{raw_item}"'
 
                 if casing == "upper":
@@ -668,7 +666,7 @@ class DBEngine:
                 elif self.db_type == "mysql":
                     valid_quotes = ('"', '`')
                 else:
-                    valid_quotes = ('"', '`', '[')
+                    valid_quotes = ('"', '`')
                 if prefix and prefix[0] in valid_quotes:
                     quote_char = prefix[0]
 

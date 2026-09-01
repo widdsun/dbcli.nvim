@@ -48,7 +48,7 @@ function source:get_trigger_characters(context)
       return { ".", "`", '"' }
     end
   end
-  return { ".", "`", '"', "[" }
+  return { ".", "`", '"' }
 end
 
 function source:get_completions(context, callback)
