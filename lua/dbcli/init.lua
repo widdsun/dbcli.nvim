@@ -476,16 +476,42 @@ function M.setup(opts)
   })
 
   local supported_formats = {
-    "psql",
+    "ascii",
+    "ascii_escaped",
+    "csv",
+    "csv-noheader",
+    "csv-tab",
+    "csv-tab-noheader",
+    "double",
     "fancy_grid",
     "github",
-    "double",
-    "simple",
+    "grid",
+    "html",
+    "jira",
+    "jsonl",
+    "jsonl_escaped",
+    "latex",
+    "latex_booktabs",
+    "markdown",
+    "mediawiki",
+    "minimal",
+    "moinmoin",
+    "mysql",
+    "mysql_heavy",
+    "mysql_unicode",
+    "orgtbl",
+    "pipe",
     "plain",
-    "vertical",
+    "psql",
+    "psql_unicode",
+    "rst",
+    "simple",
+    "textile",
     "tsv",
-    "csv",
+    "tsv_noheader",
+    "vertical",
   }
+  M.supported_formats = supported_formats
   vim.api.nvim_create_user_command("DBFormat", function(args)
     if args.args and args.args ~= "" then
       vim.b.dbcli_format = args.args

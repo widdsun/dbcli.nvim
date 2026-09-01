@@ -47,7 +47,7 @@ return {
   ft = { 'sql', 'mysql', 'plsql' },
   cmd = { 'DBExecute', 'DBConnect', 'DBDisconnect', 'DBFormat', 'DBRefresh', 'DBStatus' },
   opts = {
-    table_format = 'psql',          -- Output table style ('psql', 'fancy_grid', 'github', 'double', 'vertical', etc.)
+    table_format = 'psql',          -- Output table style ('psql', 'fancy_grid', 'markdown', 'github', 'double', 'vertical', etc.)
     split_direction = 'horizontal',  -- Result split: 'horizontal' or 'vertical'
     split_size = 15,                -- Split height/width
     default_keymaps = true,         -- Bind <space><enter> in SQL buffers
@@ -125,7 +125,7 @@ SELECT * FROM orders;
 Switch styles on the fly:
 ```vim
 :DBFormat fancy_grid   " Tab completion supported!
-:DBFormat github
+:DBFormat markdown     " Standard Markdown table (alias: github)
 :DBFormat vertical     " Similar to \G (great for wide rows)
 :DBFormat psql         " Default classic ASCII table
 ```
@@ -134,22 +134,98 @@ Switch styles on the fly:
 
 ## ⚙️ Configuration Options
 
+### 1. Default Configuration (`setup`)
+
 ```lua
 require('dbcli').setup({
-  -- Default table format
+  -- Output table formatting style for query results
   table_format = 'psql',
 
-  -- Results split window direction: 'horizontal' or 'vertical'
+  -- Results split window direction ('horizontal' or 'vertical')
   split_direction = 'horizontal',
+
+  -- Size of the results split window (height in rows or width in columns)
   split_size = 15,
 
-  -- Default keymaps (<space><enter> in SQL buffers)
+  -- Automatically bind default keymaps (<space><enter>) in SQL buffers
   default_keymaps = true,
 
-  -- Default database URI if no header is found
+  -- Fallback database URI/path if no buffer-level database is defined
   default_db = nil,
 })
 ```
+
+---
+
+### 2. Detailed Options Reference
+
+| Option | Type | Default | Allowed / Optional Values | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `table_format` | `string` | `'psql'` | All 34 formats below (e.g. `'psql'`, `'markdown'`, `'fancy_grid'`, `'vertical'`, `'csv'`) | Output table rendering style for query execution results. |
+| `split_direction` | `string` | `'horizontal'` | `'horizontal'`, `'vertical'` | Orientation of the query results split window. |
+| `split_size` | `number` | `15` | Any positive integer (e.g. `10`, `15`, `20`, `40`, `80`) | Result window height in lines (for `horizontal`) or width in columns (for `vertical`). |
+| `default_keymaps` | `boolean` | `true` | `true`, `false` | Whether to automatically bind `<space><enter>` in Normal mode (execute file) and Visual mode (execute selection). |
+| `default_db` | `string` \| `nil` | `nil` | Valid SQLite path/URI, PostgreSQL DSN/URI, or `nil` | Global default database URI to connect when neither header nor buffer variable is set. |
+
+---
+
+### 3. Supported Table Formats (`table_format`)
+
+All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat` Tab-completion):
+
+- **Database Styles**: `psql` *(default)*, `psql_unicode`, `mysql`, `mysql_unicode`, `mysql_heavy`, `vertical` *(expanded \G record view)*
+- **Markdown & Markup**: `markdown` *(alias: `github`)*, `pipe`, `orgtbl`, `html`, `latex`, `latex_booktabs`, `rst`, `mediawiki`, `textile`, `moinmoin`, `jira`
+- **Data & Delimited**: `csv`, `csv-noheader`, `csv-tab`, `csv-tab-noheader`, `tsv`, `tsv_noheader`, `jsonl`, `jsonl_escaped`
+- **Grids & ASCII**: `fancy_grid`, `grid`, `double`, `simple`, `minimal`, `plain`, `ascii`, `ascii_escaped`
+
+---
+
+### 4. Database URI Specifications (`default_db` / `:DBConnect` / `-- db:`)
+
+`dbcli.nvim` automatically detects the database type based on the provided path or URI:
+
+| Database Type | Supported URI / Path Patterns | Examples |
+| :--- | :--- | :--- |
+| **SQLite** | File path (relative or absolute), `sqlite://`, `sqlite:`, `:memory:` | `app.db`<br>`./data/test.sqlite3`<br>`sqlite:///var/data/app.db`<br>`:memory:` |
+| **PostgreSQL** | `postgresql://` or `postgres://` connection string | `postgresql://user:pass@localhost:5432/mydb`<br>`postgres://postgres@127.0.0.1/production`<br>`postgresql://user:pass@remote-host:5432/dbname?sslmode=require` |
+
+---
+
+### 5. Resolution & Override Hierarchy
+
+`dbcli.nvim` resolves database connections and table formats in the following order of precedence (highest to lowest):
+
+#### Database Connection Precedence:
+1. **Buffer-local variable**: `vim.b.db` (set via `:DBConnect <uri>` or Lua `vim.b.db = ...`)
+2. **`vim-dadbod-ui` binding**: `vim.b.db_ui_db_key_name`
+3. **File Header Comments**: First 15 lines of SQL buffer:
+   - `-- db: <uri>`
+   - `-- db = <uri>`
+   - `-- database: <uri>`
+   - `-- DB: <uri>`
+   - `-- :DB <uri>`
+4. **Global Defaults**: `vim.g.dbcli_default_db` or `vim.g.db` or `opts.default_db`
+
+#### Table Format Precedence:
+1. **Buffer-local variable**: `vim.b.dbcli_format` (set via `:DBFormat <format>`)
+2. **File Header Comments**: First 15 lines of SQL buffer:
+   - `-- format: <format>`
+   - `-- mode: <format>`
+   - `-- table_format: <format>`
+3. **Global / Plugin Config**: `vim.g.dbcli_table_format` or `opts.table_format` (defaults to `'psql'`)
+
+---
+
+### 6. User Commands
+
+| Command | Arguments | Description |
+| :--- | :--- | :--- |
+| `:DBExecute [query]` | Optional SQL statement | Executes query in argument, selected range (`:'<,'>DBExecute`), or entire buffer. |
+| `:DBConnect <uri/path>` | Database URI or path | Binds the current buffer to a SQLite file or PostgreSQL connection. |
+| `:DBDisconnect` | *None* | Disconnects the current buffer from its bound database. |
+| `:DBFormat [format]` | Optional format name | Gets or sets the table output style for the current buffer (with tab-completion). |
+| `:DBRefresh` | *None* | Forces a metadata reload (tables, columns, functions) for the current database. |
+| `:DBStatus` | *None* | Displays active database connections, current buffer bindings, and table format. |
 
 ---
 

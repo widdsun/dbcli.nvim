@@ -122,10 +122,17 @@ def map_kind_and_detail(label: str, meta_str: str, completer: Any) -> Tuple[str,
     return "Text", ""
 
 
+FORMAT_ALIASES = {
+    "markdown": "github",
+}
+
+
 def format_table(rows, headers, format_name: str = "psql") -> str:
     """Format tabular data into configurable table format."""
     if not rows and not headers:
         return ""
+    if format_name:
+        format_name = FORMAT_ALIASES.get(format_name.lower().strip(), format_name)
     if t_out:
         try:
             formatted = t_out.format_output(rows, headers, format_name=format_name)
