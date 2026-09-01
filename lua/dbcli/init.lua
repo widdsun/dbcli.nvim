@@ -147,10 +147,27 @@ function M.get_buf_db(bufnr)
     return ""
   end
 
+  local function normalize_db_path(url)
+    if not url or url == "" then return "" end
+    -- If it's a URI scheme (e.g. postgresql://, postgres://, sqlite://) or :memory:
+    if url:find("^%a+://") or url:find("^%a+:") or url == ":memory:" then
+      return url
+    end
+    -- It's a file path
+    if url:sub(1, 1) == "~" then
+      return vim.fn.expand(url)
+    elseif not (url:sub(1, 1) == "/" or url:sub(1, 1) == "\\" or url:match("^%a:[/\\]")) then
+      local buf_name = vim.api.nvim_buf_get_name(bufnr)
+      local buf_dir = (buf_name and buf_name ~= "") and vim.fs.dirname(buf_name) or vim.fn.getcwd()
+      return vim.fs.normalize(vim.fs.joinpath(buf_dir, url))
+    end
+    return vim.fs.normalize(url)
+  end
+
   -- 1. Check buffer-local variable vim.b.db
   local b_db = vim.b[bufnr].db
   if b_db and type(b_db) == "string" and b_db ~= "" then
-    return b_db
+    return normalize_db_path(b_db)
   end
 
   -- 2. Check vim-dadbod-ui connection key
@@ -167,13 +184,18 @@ function M.get_buf_db(bufnr)
       or line:match("^%s*%-%-%s*db%s*=%s*(%S+)")
       or line:match("^%s*%-%-%s*database%s*:%s*(%S+)")
     if url and url ~= "" then
-      vim.b[bufnr].db = url
-      return url
+      local norm = normalize_db_path(url)
+      vim.b[bufnr].db = norm
+      return norm
     end
   end
 
   -- 4. Check global default
-  return vim.g.dbcli_default_db or vim.g.db or ""
+  local g_db = vim.g.dbcli_default_db or vim.g.db
+  if g_db and type(g_db) == "string" and g_db ~= "" then
+    return normalize_db_path(g_db)
+  end
+  return ""
 end
 
 --- Detect output table format for a given buffer

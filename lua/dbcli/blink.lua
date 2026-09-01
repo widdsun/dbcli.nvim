@@ -37,6 +37,10 @@ function source.new(opts)
   return self
 end
 
+function source:get_trigger_characters()
+  return { ".", " ", "`", '"', "[" }
+end
+
 function source:get_completions(context, callback)
   local bufnr = context.bufnr
   local ft = vim.bo[bufnr].filetype
