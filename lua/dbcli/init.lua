@@ -61,6 +61,7 @@ function M.ensure_server()
   proc.stdout = uv.new_pipe(false)
   proc.stderr = uv.new_pipe(false)
 
+---@diagnostic disable-next-line: missing-fields
   proc.handle = uv.spawn("python3", {
     args = { server_path },
     stdio = { proc.stdin, proc.stdout, proc.stderr },

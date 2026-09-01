@@ -17,7 +17,7 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 - 🚀 **High-Performance Async Architecture**: Communicates with the Python backend via non-blocking `vim.uv` pipes without freezing Neovim.
 - 📊 **SQL Execution & Formatted Results**:
   - Execute entire files or visually selected statements.
-  - Formatted tabular output via `cli_helpers` (`psql`, `fancy_grid`, `github`, `vertical`, etc.).
+  - Formatted tabular output  (`psql`, `fancy_grid`, `markdown`, `vertical`, etc.).
   - Automatic connection binding via header comments (e.g. `-- db: ./app.db`).
 
 ---
@@ -43,15 +43,10 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 ```lua
 -- lua/plugins/dbcli.lua
 return {
-  'your-username/dbcli.nvim', -- or dir = vim.fn.stdpath('config') .. '/my-plugins/dbcli.nvim'
+  'widdsun/dbcli.nvim',
   ft = 'sql',
   cmd = { 'DBExecute', 'DBConnect', 'DBDisconnect', 'DBFormat', 'DBRefresh', 'DBStatus' },
-  opts = {
-    table_format = 'psql',          -- Output table style ('psql', 'fancy_grid', 'markdown', 'github', 'double', 'vertical', etc.)
-    split_direction = 'horizontal',  -- Result split: 'horizontal' or 'vertical'
-    split_size = 15,                -- Split height/width
-    default_keymaps = true,         -- Bind <space><enter> in SQL buffers
-  },
+  opts = {},
 }
 ```
 
@@ -61,20 +56,20 @@ Add `dbcli` to your `blink.cmp` sources:
 
 ```lua
 -- lua/plugins/blink-cmp.lua
-require('blink.cmp').setup({
+require('blink.cmp').setup {
   sources = {
     per_filetype = {
-      sql = { 'dbcli', 'lsp' },
+      sql = { 'dbcli' },
     },
     providers = {
       dbcli = {
         name = 'dbcli',
         module = 'dbcli.blink',
-        score_offset = 100, -- Prioritize dbcli completions
+        score_offset = 100,
       },
     },
   },
-})
+}
 ```
 
 ---
@@ -132,10 +127,10 @@ Switch styles on the fly:
 
 ## ⚙️ Configuration Options
 
-### 1. Default Configuration (`setup`)
+### 1. Default Configuration
 
 ```lua
-require('dbcli').setup({
+require('dbcli').setup {
   -- Output table formatting style for query results
   table_format = 'psql',
 
@@ -150,24 +145,12 @@ require('dbcli').setup({
 
   -- Fallback database URI/path if no buffer-level database is defined
   default_db = nil,
-})
+}
 ```
 
 ---
 
-### 2. Detailed Options Reference
-
-| Option | Type | Default | Allowed / Optional Values | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `table_format` | `string` | `'psql'` | All 34 formats below (e.g. `'psql'`, `'markdown'`, `'fancy_grid'`, `'vertical'`, `'csv'`) | Output table rendering style for query execution results. |
-| `split_direction` | `string` | `'horizontal'` | `'horizontal'`, `'vertical'` | Orientation of the query results split window. |
-| `split_size` | `number` | `15` | Any positive integer (e.g. `10`, `15`, `20`, `40`, `80`) | Result window height in lines (for `horizontal`) or width in columns (for `vertical`). |
-| `default_keymaps` | `boolean` | `true` | `true`, `false` | Whether to automatically bind `<space><enter>` in Normal mode (execute file) and Visual mode (execute selection). |
-| `default_db` | `string` \| `nil` | `nil` | Valid SQLite path/URI, PostgreSQL DSN/URI, or `nil` | Global default database URI to connect when neither header nor buffer variable is set. |
-
----
-
-### 3. Supported Table Formats (`table_format`)
+### 2. Supported Table Formats (`table_format`)
 
 All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat` Tab-completion):
 
@@ -178,7 +161,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 
 ---
 
-### 4. Database URI Specifications (`default_db` / `:DBConnect` / `-- db:`)
+### 3. Database URI Specifications (`default_db` / `:DBConnect` / `-- db:`)
 
 `dbcli.nvim` automatically detects the database type based on the provided path or URI:
 
@@ -189,7 +172,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 
 ---
 
-### 5. Resolution & Override Hierarchy
+### 4. Resolution & Override Hierarchy
 
 `dbcli.nvim` resolves database connections and table formats in the following order of precedence (highest to lowest):
 
@@ -214,7 +197,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 
 ---
 
-### 6. User Commands
+### 5. User Commands
 
 | Command | Arguments | Description |
 | :--- | :--- | :--- |
