@@ -6,6 +6,7 @@ Reuses pgcli and litecli (dbcli) context-aware completion and execution engines.
 
 import sys
 import os
+import re
 import glob
 import json
 import time
@@ -33,7 +34,7 @@ _setup_python_paths()
 
 try:
     from prompt_toolkit.document import Document
-    from prompt_toolkit.completion import CompleteEvent
+    from prompt_toolkit.completion import CompleteEvent, Completion
 except ImportError:
     pass
 
@@ -48,6 +49,206 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 logger = logging.getLogger("dbcli_server")
+
+
+def unquote_identifier(s: str) -> str:
+    """Strip quotes/brackets from SQL identifier."""
+    if not s:
+        return ""
+    if (s.startswith('"') and s.endswith('"')) or \
+       (s.startswith('`') and s.endswith('`')) or \
+       (s.startswith('[') and s.endswith(']')):
+        return s[1:-1]
+    return s
+
+
+def patch_completers():
+    """Patch litecli and pgcli completers to support identifier quote triggers (\", `, [)."""
+    try:
+        from litecli.sqlcompleter import SQLCompleter
+        import litecli.sqlcompleter as sc
+
+        def litecli_find_matches(
+            text,
+            collection,
+            start_only=False,
+            fuzzy=True,
+            casing=None,
+            punctuations="most_punctuations",
+        ):
+            last = sc.last_word(text, include=punctuations)
+            orig_len = len(last)
+            quote_char = None
+            if last and last[0] in ('"', '`', '['):
+                quote_char = last[0]
+                clean_text = last[1:]
+            else:
+                clean_text = last
+
+            match_text = clean_text.lower()
+            completions = []
+
+            if fuzzy:
+                regex = ".*?".join(map(re.escape, match_text))
+                pat = re.compile("(%s)" % regex)
+                for item in sorted(collection):
+                    raw_item = unquote_identifier(item)
+                    r = pat.search(raw_item.lower())
+                    if r:
+                        completions.append((len(r.group()), r.start(), item, raw_item))
+            else:
+                match_end_limit = len(match_text) if start_only else None
+                for item in sorted(collection):
+                    raw_item = unquote_identifier(item)
+                    match_point = raw_item.lower().find(match_text, 0, match_end_limit)
+                    if match_point >= 0:
+                        completions.append((len(match_text), match_point, item, raw_item))
+
+            if casing == "auto":
+                casing = "lower" if clean_text and clean_text[-1].islower() else "upper"
+
+            def format_item(item, raw_item):
+                if raw_item == '*':
+                    return '*'
+                if quote_char == '"':
+                    return f'"{raw_item}"'
+                elif quote_char == '`':
+                    return f'`{raw_item}`'
+                elif quote_char == '[':
+                    return f'[{raw_item}]'
+
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"') or item.startswith('[')):
+                    return f'`{raw_item}`'
+
+                if casing == "upper":
+                    return item.upper()
+                elif casing == "lower":
+                    return item.lower()
+                return item
+
+            for x, y, item, raw_item in sorted(completions):
+                yield Completion(
+                    format_item(item, raw_item),
+                    -orig_len,
+                    display=raw_item,
+                )
+
+        SQLCompleter.find_matches = staticmethod(litecli_find_matches)
+    except Exception as e:
+        logger.debug(f"Failed to patch litecli SQLCompleter: {e}")
+
+    try:
+        from pgcli.pgcompleter import PGCompleter, _Candidate, Match
+        import pgcli.pgcompleter as pc
+
+        def pgcli_find_matches(self, text, collection, mode="fuzzy", meta=None):
+            if not collection:
+                return []
+            prio_order = [
+                "keyword", "function", "view", "table", "datatype", "database",
+                "schema", "column", "table alias", "join", "name join", "fk join", "table format"
+            ]
+            type_priority = prio_order.index(meta) if meta in prio_order else -1
+
+            last = pc.last_word(text, include="most_punctuations")
+            orig_len = len(last)
+            quote_char = None
+            if last and last[0] in ('"', '`', '['):
+                quote_char = last[0]
+                clean_text = last[1:].lower()
+            else:
+                clean_text = last.lower()
+
+            if mode == "fuzzy":
+                fuzzy = True
+                priority_func = self.prioritizer.name_count
+            else:
+                fuzzy = False
+                priority_func = self.prioritizer.keyword_count
+
+            if fuzzy:
+                regex = ".*?".join(map(re.escape, clean_text))
+                pat = re.compile("(%s)" % regex)
+
+                def _match(item):
+                    raw = unquote_identifier(item).lower()
+                    if raw[: len(clean_text) + 1] in (clean_text, clean_text + " "):
+                        return float("Infinity"), -1
+                    r = pat.search(raw)
+                    if r:
+                        return -len(r.group()), -r.start()
+            else:
+                match_end_limit = len(clean_text)
+
+                def _match(item):
+                    raw = unquote_identifier(item).lower()
+                    match_point = raw.find(clean_text, 0, match_end_limit)
+                    if match_point >= 0:
+                        return -float("Infinity"), -match_point
+
+            def format_item(item, raw_item):
+                if raw_item == '*':
+                    return '*'
+                if quote_char == '"':
+                    return f'"{raw_item}"'
+                elif quote_char == '`':
+                    return f'`{raw_item}`'
+                elif quote_char == '[':
+                    return f'[{raw_item}]'
+
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('"') or item.startswith('`') or item.startswith('[')):
+                    return f'"{raw_item}"'
+                return item
+
+            matches = []
+            for cand in collection:
+                if isinstance(cand, _Candidate):
+                    item, prio, display_meta, synonyms, prio2, display = cand
+                    if display_meta is None:
+                        display_meta = meta
+                    syn_matches = (_match(x) for x in synonyms)
+                    syn_matches = [m for m in syn_matches if m]
+                    sort_key = max(syn_matches) if syn_matches else None
+                else:
+                    item, display_meta, prio, prio2, display = cand, meta, 0, 0, cand
+                    sort_key = _match(cand)
+
+                if sort_key:
+                    if display_meta and len(display_meta) > 50:
+                        display_meta = display_meta[:47] + "..."
+                    raw_item = unquote_identifier(item)
+                    lexical_priority = (
+                        tuple(0 if c in " _" else -ord(c) for c in raw_item.lower()) + (1,) + tuple(c for c in item)
+                    )
+                    formatted_item = format_item(self.case(item), raw_item)
+                    priority = (
+                        sort_key,
+                        type_priority,
+                        prio,
+                        priority_func(item),
+                        prio2,
+                        lexical_priority,
+                    )
+                    matches.append(
+                        Match(
+                            completion=Completion(
+                                text=formatted_item,
+                                start_position=-orig_len,
+                                display_meta=display_meta,
+                                display=raw_item,
+                            ),
+                            priority=priority,
+                        )
+                    )
+            return matches
+
+        PGCompleter.find_matches = pgcli_find_matches
+    except Exception as e:
+        logger.debug(f"Failed to patch pgcli PGCompleter: {e}")
+
+
+patch_completers()
+
 
 
 def to_string(val: Any) -> str:
@@ -288,14 +489,25 @@ class DBEngine:
             display = to_string(getattr(c, "display", "") or "")
             label = c.text
             kind, detail = map_kind_and_detail(label, raw_meta, self.completer)
+            start_pos = getattr(c, "start_position", 0)
+
+            quote_char = None
+            if start_pos < 0 and (cursor_pos + start_pos) >= 0:
+                prefix = text[cursor_pos + start_pos:cursor_pos]
+                if prefix and prefix[0] in ('"', '`', '['):
+                    quote_char = prefix[0]
+
+            raw_item = unquote_identifier(display or label)
 
             results.append({
                 "label": label,
-                "display": display or label,
+                "display": display or raw_item,
                 "detail": detail,
                 "kind": kind,
                 "insertText": label,
-                "startPosition": getattr(c, "start_position", 0),
+                "filterText": raw_item,
+                "startPosition": start_pos,
+                "quoteChar": quote_char,
             })
         return results
 

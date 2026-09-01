@@ -38,7 +38,7 @@ function source.new(opts)
 end
 
 function source:get_trigger_characters()
-  return { ".", " ", "`", '"', "[" }
+  return { ".", "`", '"', "[" }
 end
 
 function source:get_completions(context, callback)
@@ -74,13 +74,42 @@ function source:get_completions(context, callback)
       return
     end
 
+    local curr_line = lines[cursor_row] or ""
     local items = {}
     for _, it in ipairs(resp.items) do
+      local start_pos = it.startPosition or 0
+      local quote_char = it.quoteChar
+      if not quote_char and start_pos < 0 then
+        local prefix_char = curr_line:sub(cursor_col + start_pos + 1, cursor_col + start_pos + 1)
+        if prefix_char == '"' or prefix_char == "`" or prefix_char == "[" then
+          quote_char = prefix_char
+        end
+      end
+
+      local start_char = math.max(0, cursor_col + start_pos)
+      local end_char = cursor_col
+      if quote_char then
+        local closing_char = (quote_char == "[" and "]") or quote_char
+        local next_char = curr_line:sub(cursor_col + 1, cursor_col + 1)
+        if next_char == closing_char then
+          end_char = end_char + 1
+        end
+      end
+
+      local insert_text = it.insertText or it.label
       table.insert(items, {
         label = it.label,
         kind = kind_map[it.kind] or 1,
         detail = (it.detail and it.detail ~= "") and it.detail or nil,
-        insertText = it.insertText or it.label,
+        filterText = it.filterText or it.display or it.label,
+        insertText = insert_text,
+        textEdit = {
+          newText = insert_text,
+          range = {
+            start = { line = cursor_row - 1, character = start_char },
+            ["end"] = { line = cursor_row - 1, character = end_char },
+          },
+        },
       })
     end
 
