@@ -37,7 +37,17 @@ function source.new(opts)
   return self
 end
 
-function source:get_trigger_characters()
+function source:get_trigger_characters(context)
+  local bufnr = context and context.bufnr or vim.api.nvim_get_current_buf()
+  local db_uri = dbcli.get_buf_db(bufnr)
+  if db_uri and db_uri ~= "" then
+    local u = db_uri:lower()
+    if u:find("^postgresql://") or u:find("^postgres://") then
+      return { ".", '"' }
+    elseif u:find("^mysql://") or u:find("^mysql2://") or u:find("^mariadb://") then
+      return { ".", "`", '"' }
+    end
+  end
   return { ".", "`", '"', "[" }
 end
 
@@ -79,9 +89,10 @@ function source:get_completions(context, callback)
     for _, it in ipairs(resp.items) do
       local start_pos = it.startPosition or 0
       local quote_char = it.quoteChar
+      if quote_char == vim.NIL then quote_char = nil end
       if not quote_char and start_pos < 0 then
         local prefix_char = curr_line:sub(cursor_col + start_pos + 1, cursor_col + start_pos + 1)
-        if prefix_char == '"' or prefix_char == "`" or prefix_char == "[" then
+        if prefix_char == '"' or prefix_char == "`" then
           quote_char = prefix_char
         end
       end

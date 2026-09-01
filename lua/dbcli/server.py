@@ -203,8 +203,8 @@ def patch_completers():
             last = pc.last_word(text, include="most_punctuations")
             orig_len = len(last)
             quote_char = None
-            if last and last[0] in ('"', '`', '['):
-                quote_char = last[0]
+            if last and last[0] == '"':
+                quote_char = '"'
                 clean_text = last[1:].lower()
             else:
                 clean_text = last.lower()
@@ -241,12 +241,8 @@ def patch_completers():
                     return '*'
                 if quote_char == '"':
                     return f'"{raw_item}"'
-                elif quote_char == '`':
-                    return f'`{raw_item}`'
-                elif quote_char == '[':
-                    return f'[{raw_item}]'
 
-                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('"') or item.startswith('`') or item.startswith('[')):
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not item.startswith('"'):
                     return f'"{raw_item}"'
                 return item
 
@@ -311,7 +307,7 @@ def patch_completers():
             last = mc.last_word(text, include=punctuations)
             orig_len = len(last)
             quote_char = None
-            if last and last[0] in ('"', '`', '['):
+            if last and last[0] in ('"', '`'):
                 quote_char = last[0]
                 clean_text = last[1:]
             else:
@@ -346,10 +342,8 @@ def patch_completers():
                     return f'"{raw_item}"'
                 elif quote_char == '`':
                     return f'`{raw_item}`'
-                elif quote_char == '[':
-                    return f'[{raw_item}]'
 
-                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"') or item.startswith('[')):
+                if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"')):
                     return f'`{raw_item}`'
 
                 if casing == "upper":
@@ -669,7 +663,13 @@ class DBEngine:
             quote_char = None
             if start_pos < 0 and (cursor_pos + start_pos) >= 0:
                 prefix = text[cursor_pos + start_pos:cursor_pos]
-                if prefix and prefix[0] in ('"', '`', '['):
+                if self.db_type == "postgres":
+                    valid_quotes = ('"',)
+                elif self.db_type == "mysql":
+                    valid_quotes = ('"', '`')
+                else:
+                    valid_quotes = ('"', '`', '[')
+                if prefix and prefix[0] in valid_quotes:
                     quote_char = prefix[0]
 
             raw_item = unquote_identifier(display or label)
@@ -797,7 +797,7 @@ class DBService:
             return "sqlite"
         if os.path.isfile(os.path.expanduser(u)):
             return "sqlite"
-        return "postgres" if "5432" in u or "port=" in u else "sqlite"
+        return "sqlite"
 
     def get_or_create_engine(self, uri: str) -> DBEngine:
         if not uri or uri == "":
