@@ -80,6 +80,14 @@ def patch_completers():
             self.reserved_words.update(COMMON_SQL_RESERVED)
         SQLCompleter.__init__ = patched_litecli_init
 
+        def litecli_escape_name(self, name: str) -> str:
+            if isinstance(name, bytes):
+                name = name.decode("utf-8", "replace")
+            if name and ((not self.name_pattern.match(name)) or (name.upper() in self.reserved_words) or (name.upper() in self.functions)):
+                return f'"{name}"'
+            return name
+        SQLCompleter.escape_name = litecli_escape_name
+
         def litecli_find_matches(
             text,
             collection,
@@ -129,8 +137,11 @@ def patch_completers():
                 elif quote_char == '[':
                     return f'[{raw_item}]'
 
+                # Use double quotes for SQLite identifier escaping by default
+                if item.startswith('`'):
+                    return f'"{raw_item}"'
                 if re.search(r'[^a-zA-Z0-9_]', raw_item) and not (item.startswith('`') or item.startswith('"') or item.startswith('[')):
-                    return f'`{raw_item}`'
+                    return f'"{raw_item}"'
 
                 if casing == "upper":
                     return item.upper()
