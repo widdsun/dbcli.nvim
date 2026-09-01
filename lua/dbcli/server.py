@@ -294,31 +294,47 @@ def map_kind_and_detail(label: str, meta_str: str, completer: Any) -> Tuple[str,
         return "Text", meta_str
 
     if completer:
-        upper_label = label.upper()
-        lower_label = label.lower()
-        
-        funcs = getattr(completer, "functions", set())
-        if upper_label in funcs or lower_label in funcs or label in funcs:
-            return "Function", "function"
-
-        kws = getattr(completer, "keywords", set())
-        if upper_label in kws or label in kws:
-            return "Keyword", "keyword"
+        raw_clean = unquote_identifier(label)
+        raw_upper = raw_clean.upper()
+        raw_lower = raw_clean.lower()
 
         dbmeta = getattr(completer, "dbmetadata", {})
         tables = dbmeta.get("tables", {})
         if isinstance(tables, dict):
             for sch, t_dict in tables.items():
-                if isinstance(t_dict, dict) and (label in t_dict or lower_label in t_dict):
-                    return "Class", f"table ({sch})"
-                elif isinstance(t_dict, (list, set)) and (label in t_dict or lower_label in t_dict):
-                    return "Class", f"table ({sch})"
+                if isinstance(t_dict, dict):
+                    for t_name, c_list in t_dict.items():
+                        clean_t_name = unquote_identifier(t_name)
+                        if isinstance(c_list, (list, set)):
+                            for col in c_list:
+                                clean_col = unquote_identifier(col)
+                                if clean_col != '*' and (raw_clean == clean_col or raw_lower == clean_col.lower()):
+                                    return "Field", f"column ({clean_t_name})"
+                        if raw_clean == clean_t_name or raw_lower == clean_t_name.lower():
+                            return "Class", f"table ({sch})"
+                elif isinstance(t_dict, (list, set)):
+                    for t_name in t_dict:
+                        clean_t_name = unquote_identifier(t_name)
+                        if raw_clean == clean_t_name or raw_lower == clean_t_name.lower():
+                            return "Class", f"table ({sch})"
 
         cols = dbmeta.get("columns", {})
         if isinstance(cols, dict):
             for t_name, c_list in cols.items():
-                if isinstance(c_list, (list, set)) and (label in c_list or lower_label in c_list):
-                    return "Field", f"column ({t_name})"
+                clean_t_name = unquote_identifier(t_name)
+                if isinstance(c_list, (list, set)):
+                    for col in c_list:
+                        clean_col = unquote_identifier(col)
+                        if clean_col != '*' and (raw_clean == clean_col or raw_lower == clean_col.lower()):
+                            return "Field", f"column ({clean_t_name})"
+
+        funcs = getattr(completer, "functions", set())
+        if raw_upper in funcs or raw_lower in funcs or raw_clean in funcs:
+            return "Function", "function"
+
+        kws = getattr(completer, "keywords", set())
+        if raw_upper in kws or raw_clean in kws:
+            return "Keyword", "keyword"
 
     return "Text", ""
 
