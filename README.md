@@ -1,24 +1,17 @@
 # dbcli.nvim
 
-⚡ **Smart, Context-Aware SQL Completion & Execution for Neovim**
+⚡ **Context-Aware SQL Completion & Execution for Neovim**
 
 Reuses the powerful completion and execution engines of [pgcli](https://github.com/dbcli/pgcli), [litecli](https://github.com/dbcli/litecli), and [mycli](https://github.com/dbcli/mycli) from the [dbcli](https://www.dbcli.com/) ecosystem.
 
 ---
 
-## ✨ Features
+## Features
 
-- 🧠 **Context-Aware Completion**: Powered by `dbcli`'s AST-based `sqlcompletion.py`:
-  - Intelligent suggestions for `SELECT`, `FROM`, `JOIN`, `WHERE`, and subqueries.
-  - Automatic `JOIN ON` condition inference.
-  - Table alias resolution (`SELECT u. ` automatically suggests columns from `users u`).
-  - **Full function completion**: Built-in & user-defined functions with parameter signatures and return types.
-- ⚡ **Seamless `blink.cmp` Integration**: First-class custom completion source for `saghen/blink.cmp`.
-- 🚀 **High-Performance Async Architecture**: Communicates with the Python backend via non-blocking `vim.uv` pipes without freezing Neovim.
-- 📊 **SQL Execution & Formatted Results**:
-  - Execute entire files or visually selected statements.
-  - Formatted tabular output  (`psql`, `fancy_grid`, `markdown`, `vertical`, etc.).
-  - Automatic connection binding via header comments (e.g. `-- db: ./app.db`).
+- **Context-aware completion**: Table, column, alias, `JOIN` condition, and function suggestions powered by `dbcli`.
+- **`blink.cmp` integration**: Custom completion source for [blink.cmp](https://github.com/Saghen/blink.cmp).
+- **Query execution**: Run buffer or visual selections with formatted tabular output (`psql`, `markdown`, `vertical`, etc.).
+- **Header configuration**: Set connection URI and output format directly via file comments (e.g. `-- db: ./app.db`).
 
 ---
 
