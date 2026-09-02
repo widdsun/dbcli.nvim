@@ -24,11 +24,12 @@ M.config = {
 
 local function get_server_path()
   local info = debug.getinfo(1, "S")
-  local script_dir = info.source:sub(2):match("(.*/)")
+  local script_dir = info.source:sub(2):match("(.*[/\\])")
   if script_dir then
     return script_dir .. "server.py"
   end
-  return vim.fn.expand("~/.config/nvim/my-plugins/dbcli.nvim/lua/dbcli/server.py")
+  -- Fallback: resolve relative to this file at runtime via Neovim's runtimepath
+  return vim.fn.fnamemodify(vim.fn.resolve(vim.fn.expand("<sfile>")), ":h") .. "/server.py"
 end
 
 local function cleanup_process()

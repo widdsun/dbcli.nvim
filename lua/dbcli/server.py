@@ -885,17 +885,18 @@ def main():
             if not line:
                 continue
 
+            req = None
             try:
                 req = json.loads(line)
                 resp = service.handle_request(req)
             except Exception as e:
                 resp = {
-                    "id": req.get("id") if "req" in locals() and isinstance(req, dict) else None,
+                    "id": req.get("id") if isinstance(req, dict) else None,
                     "status": "error",
                     "message": str(e),
                     "traceback": traceback.format_exc(),
                 }
-            
+
             sys.stdout.write(json.dumps(resp) + "\n")
             sys.stdout.flush()
         except (KeyboardInterrupt, SystemExit):
