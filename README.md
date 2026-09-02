@@ -40,16 +40,37 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 
 ## 🛠️ Installation
 
-### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
+### Using [lazy.nvim](https://github.com/folke/lazy.nvim) *(Recommended)*
 
 ```lua
 -- lua/plugins/dbcli.lua
 return {
   'widdsun/dbcli.nvim',
   ft = 'sql',
-  cmd = { 'DBExecute', 'DBConnect', 'DBDisconnect', 'DBFormat', 'DBRefresh', 'DBStatus' },
   opts = {},
 }
+```
+
+### Using `vim.pack` (Neovim >= 0.12)
+
+Add to your `init.lua`:
+
+```lua
+vim.pack.add('https://github.com/widdsun/dbcli.nvim')
+require('dbcli').setup {}
+```
+
+To load lazily on SQL files only:
+
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'sql',
+  once = true,
+  callback = function()
+    vim.pack.add('https://github.com/widdsun/dbcli.nvim')
+    require('dbcli').setup {}
+  end,
+})
 ```
 
 ### Configure with `blink.cmp`
