@@ -1,6 +1,6 @@
 # dbcli.nvim
 
-⚡ **Smart, Context-Aware SQL Completion & Execution for Neovim
+⚡ **Smart, Context-Aware SQL Completion & Execution for Neovim**
 
 Reuses the powerful completion and execution engines of [pgcli](https://github.com/dbcli/pgcli) and [litecli](https://github.com/dbcli/litecli) from the [dbcli](https://www.dbcli.com/) ecosystem.
 
@@ -25,13 +25,15 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 ## 📦 Requirements
 
 - **Neovim** >= 0.10
-- **Python 3** with `pgcli` and/or `litecli`:
+- **Python 3** with one or more of the following backends:
   ```bash
-  # macOS (Homebrew)
-  brew install pgcli litecli
+  # macOS (Homebrew) — install the backends you need
+  brew install pgcli      # PostgreSQL
+  brew install litecli    # SQLite
+  brew install mycli      # MySQL / MariaDB
 
   # or pip / pipx
-  pip install pgcli litecli prompt_toolkit cli_helpers
+  pip install pgcli litecli mycli prompt_toolkit cli_helpers
   ```
 
 ---
@@ -169,6 +171,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 | :--- | :--- | :--- |
 | **SQLite** | File path (relative or absolute), `sqlite://`, `sqlite:`, `:memory:` | `app.db`<br>`./data/test.sqlite3`<br>`sqlite:///var/data/app.db`<br>`:memory:` |
 | **PostgreSQL** | `postgresql://` or `postgres://` connection string | `postgresql://user:pass@localhost:5432/mydb`<br>`postgres://postgres@127.0.0.1/production`<br>`postgresql://user:pass@remote-host:5432/dbname?sslmode=require` |
+| **MySQL / MariaDB** | `mysql://`, `mysql2://`, or `mariadb://` connection string | `mysql://user:pass@localhost:3306/mydb`<br>`mariadb://user:pass@localhost:3306/mydb` |
 
 ---
 
