@@ -28,9 +28,9 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 - **Python 3** with one or more of the following backends:
   ```bash
   # macOS (Homebrew) — install the backends you need
-  brew install pgcli      # PostgreSQL
-  brew install litecli    # SQLite
-  brew install mycli      # MySQL / MariaDB
+  brew install pgcli   # PostgreSQL
+  brew install litecli # SQLite
+  brew install mycli   # MySQL / MariaDB
 
   # or pip / pipx
   pip install pgcli litecli mycli prompt_toolkit cli_helpers
@@ -131,7 +131,8 @@ SELECT * FROM orders;
 | **Visual** | `<space><enter>` | Execute visually selected statements |
 | **Command** | `:DBExecute` | Execute entire buffer or range (`:'<,'>DBExecute`) |
 | **Command** | `:DBExecute SELECT 1;` | Execute inline query |
-| **Result Win** | `q` | Close results window |
+| **Command** | `:DBClose` | Close results window |
+| **Normal** | `q` | Close results window |
 
 ---
 
@@ -225,6 +226,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 | Command | Arguments | Description |
 | :--- | :--- | :--- |
 | `:DBExecute [query]` | Optional SQL statement | Executes query in argument, selected range (`:'<,'>DBExecute`), or entire buffer. |
+| `:DBClose` | *None* | Closes the SQL results window if currently open. |
 | `:DBConnect <uri/path>` | Database URI or path | Binds the current buffer to a SQLite file or PostgreSQL connection. |
 | `:DBDisconnect` | *None* | Disconnects the current buffer from its bound database. |
 | `:DBFormat [format]` | Optional format name | Gets or sets the table output style for the current buffer (with tab-completion). |

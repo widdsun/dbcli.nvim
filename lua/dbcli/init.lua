@@ -293,6 +293,41 @@ function M.status()
   end)
 end
 
+--- Check if the result window is currently open
+function M.is_result_open()
+  if M.result_win and vim.api.nvim_win_is_valid(M.result_win) then
+    return true
+  end
+  if M.result_buf and vim.api.nvim_buf_is_valid(M.result_buf) then
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_get_buf(win) == M.result_buf then
+        M.result_win = win
+        return true
+      end
+    end
+  end
+  return false
+end
+
+--- Close the SQL results window if open
+function M.close_results()
+  local closed = false
+  if M.result_win and vim.api.nvim_win_is_valid(M.result_win) then
+    pcall(vim.api.nvim_win_close, M.result_win, true)
+    M.result_win = nil
+    closed = true
+  end
+  if M.result_buf and vim.api.nvim_buf_is_valid(M.result_buf) then
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      if vim.api.nvim_win_get_buf(win) == M.result_buf then
+        pcall(vim.api.nvim_win_close, win, true)
+        closed = true
+      end
+    end
+  end
+  return closed
+end
+
 --- Display SQL results in dedicated window
 local function show_results_window(content)
   if not M.result_buf or not vim.api.nvim_buf_is_valid(M.result_buf) then
@@ -305,10 +340,7 @@ local function show_results_window(content)
     pcall(vim.api.nvim_buf_set_name, M.result_buf, "[dbcli results]")
 
     vim.keymap.set("n", "q", function()
-      if M.result_win and vim.api.nvim_win_is_valid(M.result_win) then
-        vim.api.nvim_win_close(M.result_win, true)
-        M.result_win = nil
-      end
+      M.close_results()
     end, { buffer = M.result_buf, desc = "Close SQL results window", silent = true })
   end
 
@@ -404,7 +436,7 @@ function M.execute(opts)
   end)
 end
 
---- Bind execution keymaps to a SQL buffer (only <space><enter>)
+--- Bind execution and utility keymaps to a SQL buffer
 function M.bind_keymaps(bufnr)
   if not M.config.default_keymaps then return end
 
@@ -424,6 +456,25 @@ function M.bind_keymaps(bufnr)
     "<space><enter>",
     ":DBExecute<cr>",
     vim.tbl_extend("force", buf_opts, { desc = "= [dbcli] execute selected SQL" })
+  )
+
+  -- q: In SQL buffer, close results window if open, otherwise fallback to native 'q' (macro recording)
+  vim.keymap.set(
+    "n",
+    "q",
+    function()
+      if vim.fn.reg_recording() ~= "" or vim.fn.reg_executing() ~= "" then
+        return "q"
+      end
+      if M.is_result_open() then
+        vim.schedule(function()
+          M.close_results()
+        end)
+        return "<Ignore>"
+      end
+      return "q"
+    end,
+    vim.tbl_extend("force", buf_opts, { expr = true, desc = "[dbcli] close results or record macro" })
   )
 end
 
@@ -475,6 +526,14 @@ function M.setup(opts)
     range = true,
     nargs = "*",
     desc = "Execute SQL query, selection, or entire file",
+  })
+
+  vim.api.nvim_create_user_command("DBClose", function()
+    if not M.close_results() then
+      vim.notify("[dbcli] No active results window to close", vim.log.levels.INFO)
+    end
+  end, {
+    desc = "Close dbcli SQL results window",
   })
 
   vim.api.nvim_create_user_command("DBConnect", function(args)
