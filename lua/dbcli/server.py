@@ -717,7 +717,10 @@ class DBEngine:
 
                         if rows is not None and headers is not None:
                             table_str = format_table(rows, headers, format_name=format_name)
-                            output_blocks.append(table_str)
+                            if table_str:
+                                output_blocks.append(table_str)
+                                if status:
+                                    output_blocks.append("")
                         if status:
                             output_blocks.append(f"[{status}]")
                         output_blocks.append("")
@@ -738,7 +741,10 @@ class DBEngine:
 
                         if rows is not None and headers is not None:
                             table_str = format_table(rows, headers, format_name=format_name)
-                            output_blocks.append(table_str)
+                            if table_str:
+                                output_blocks.append(table_str)
+                                if status:
+                                    output_blocks.append("")
                         if status:
                             output_blocks.append(f"[{status}]")
                         output_blocks.append("")
@@ -747,7 +753,10 @@ class DBEngine:
                     for title, rows, headers, status in self.executor.run(query):
                         if rows is not None and headers is not None:
                             table_str = format_table(rows, headers, format_name=format_name)
-                            output_blocks.append(table_str)
+                            if table_str:
+                                output_blocks.append(table_str)
+                                if status:
+                                    output_blocks.append("")
                         if status:
                             output_blocks.append(f"[{status}]")
                         output_blocks.append("")

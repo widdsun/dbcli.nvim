@@ -78,7 +78,6 @@ vim.api.nvim_create_autocmd('FileType', {
 Add `dbcli` to your `blink.cmp` sources:
 
 ```lua
--- lua/plugins/blink-cmp.lua
 require('blink.cmp').setup {
   sources = {
     per_filetype = {
