@@ -2,7 +2,7 @@
 
 ⚡ **Smart, Context-Aware SQL Completion & Execution for Neovim**
 
-Reuses the powerful completion and execution engines of [pgcli](https://github.com/dbcli/pgcli) and [litecli](https://github.com/dbcli/litecli) from the [dbcli](https://www.dbcli.com/) ecosystem.
+Reuses the powerful completion and execution engines of [pgcli](https://github.com/dbcli/pgcli), [litecli](https://github.com/dbcli/litecli), and [mycli](https://github.com/dbcli/mycli) from the [dbcli](https://www.dbcli.com/) ecosystem.
 
 ---
 
