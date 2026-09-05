@@ -4,6 +4,8 @@
 
 Reuses the powerful completion and execution engines of [pgcli](https://github.com/dbcli/pgcli), [litecli](https://github.com/dbcli/litecli), and [mycli](https://github.com/dbcli/mycli) from the [dbcli](https://www.dbcli.com/) ecosystem.
 
+https://github.com/user-attachments/assets/f2f2d233-15ed-481e-bddc-a29657afa879
+
 ---
 
 ## Features
