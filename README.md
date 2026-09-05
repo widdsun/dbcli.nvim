@@ -33,7 +33,7 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 
 ## 🛠️ Installation
 
-### Using [lazy.nvim](https://github.com/folke/lazy.nvim) *(Recommended)*
+### Using [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
@@ -97,13 +97,14 @@ Add a comment at the top (first 15 lines) of your `.sql` file:
 
 ```sql
 -- db: /path/to/app.sqlite3
--- format: fancy_grid
+
 SELECT * FROM users;
 ```
 
 Or for PostgreSQL:
 ```sql
 -- db: postgresql://user:password@localhost:5432/mydb
+
 SELECT * FROM orders;
 ```
 
@@ -135,7 +136,7 @@ Switch styles on the fly:
 :DBFormat fancy_grid   " Tab completion supported!
 :DBFormat markdown     " Standard Markdown table (alias: github)
 :DBFormat vertical     " Similar to \G (great for wide rows)
-:DBFormat psql         " Default classic ASCII table
+:DBFormat psql         " Classic ASCII table (default)
 ```
 
 ---
