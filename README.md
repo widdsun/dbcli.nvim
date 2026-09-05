@@ -36,8 +36,7 @@ Reuses the powerful completion and execution engines of [pgcli](https://github.c
 ### Using [lazy.nvim](https://github.com/folke/lazy.nvim) *(Recommended)*
 
 ```lua
--- lua/plugins/dbcli.lua
-return {
+{
   'widdsun/dbcli.nvim',
   ft = 'sql',
   opts = {},
