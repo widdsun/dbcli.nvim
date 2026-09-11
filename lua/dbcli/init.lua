@@ -20,6 +20,7 @@ M.config = {
   split_size = 15,
   table_format = "psql",
   default_keymaps = true,
+  keyword_casing = nil, -- "upper", "lower", "auto", or nil (falls back to litecli/pgcli config, then "upper")
 }
 
 local function get_server_path()
@@ -221,6 +222,30 @@ function M.get_buf_format(bufnr)
   return vim.g.dbcli_table_format or M.config.table_format or "psql"
 end
 
+--- Detect keyword casing preference for a given buffer
+function M.get_buf_casing(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not vim.api.nvim_buf_is_valid(bufnr) then return M.config.keyword_casing end
+
+  -- 1. Check buffer-local variable
+  local b_casing = vim.b[bufnr].dbcli_keyword_casing or vim.b[bufnr].keyword_casing
+  if b_casing and type(b_casing) == "string" and b_casing ~= "" then
+    return b_casing:lower()
+  end
+
+  -- 2. Scan first 15 lines of buffer for header comments (-- keyword_casing: upper)
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, 15, false)
+  for _, line in ipairs(lines) do
+    local casing = line:match("^%s*%-%-%s*keyword_casing%s*[:=]%s*(%S+)")
+    if casing and casing ~= "" then
+      return casing:lower()
+    end
+  end
+
+  -- 3. Check global or plugin config
+  return vim.g.dbcli_keyword_casing or M.config.keyword_casing
+end
+
 function M.connect(uri, bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   if not uri or uri == "" then
@@ -228,13 +253,15 @@ function M.connect(uri, bufnr)
     return
   end
 
+  local casing = M.get_buf_casing(bufnr)
   vim.b[bufnr].db = uri
-  M.send_request("connect", { uri = uri }, function(resp)
+  M.send_request("connect", { uri = uri, keyword_casing = casing }, function(resp)
     if resp.status == "ok" then
+      local casing_str = resp.keyword_casing and (" [casing: " .. resp.keyword_casing .. "]") or ""
       if resp.error and resp.error ~= vim.NIL and resp.error ~= "" then
-        vim.notify(string.format("[dbcli] Connected to %s (%s) with warning: %s", resp.uri, resp.db_type, resp.error), vim.log.levels.WARN)
+        vim.notify(string.format("[dbcli] Connected to %s (%s)%s with warning: %s", resp.uri, resp.db_type, casing_str, resp.error), vim.log.levels.WARN)
       else
-        vim.notify(string.format("[dbcli] Connected to %s (%s)", resp.uri, resp.db_type), vim.log.levels.INFO)
+        vim.notify(string.format("[dbcli] Connected to %s (%s)%s", resp.uri, resp.db_type, casing_str), vim.log.levels.INFO)
       end
     else
       vim.notify("[dbcli] Connect error: " .. tostring(resp.message or resp.error), vim.log.levels.ERROR)
@@ -273,18 +300,21 @@ function M.status()
   local bufnr = vim.api.nvim_get_current_buf()
   local current_db = M.get_buf_db(bufnr)
   local current_fmt = M.get_buf_format(bufnr)
+  local current_casing = M.get_buf_casing(bufnr) or "(auto-detect)"
 
   M.send_request("status", {}, function(resp)
     local lines = {
       "=== dbcli Status ===",
-      "Current Buffer DB: " .. (current_db ~= "" and current_db or "(none)"),
-      "Table Format:      " .. current_fmt,
+      "Current Buffer DB:     " .. (current_db ~= "" and current_db or "(none)"),
+      "Table Format:          " .. current_fmt,
+      "Keyword Casing:        " .. current_casing,
       "",
       "Active Server Connections:",
     }
     if resp.connections and #resp.connections > 0 then
       for _, c in ipairs(resp.connections) do
-        table.insert(lines, string.format(" - [%s] %s (ready: %s)", c.db_type, c.uri, tostring(c.ready)))
+        local c_casing = c.keyword_casing and (", casing: " .. c.keyword_casing) or ""
+        table.insert(lines, string.format(" - [%s] %s (ready: %s%s)", c.db_type, c.uri, tostring(c.ready), c_casing))
       end
     else
       table.insert(lines, " (No active connections)")
@@ -488,6 +518,7 @@ function M.setup(opts)
   if opts.split_size then M.config.split_size = opts.split_size end
   if opts.table_format then M.config.table_format = opts.table_format end
   if opts.default_keymaps ~= nil then M.config.default_keymaps = opts.default_keymaps end
+  if opts.keyword_casing then M.config.keyword_casing = opts.keyword_casing end
 
   -- Auto commands for header detection and buffer keymaps
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "FileType" }, {
@@ -496,7 +527,8 @@ function M.setup(opts)
       local uri = M.get_buf_db(ev.buf)
       if uri and uri ~= "" and not vim.b[ev.buf]._dbcli_connected then
         vim.b[ev.buf]._dbcli_connected = true
-        M.send_request("connect", { uri = uri })
+        local casing = M.get_buf_casing(ev.buf)
+        M.send_request("connect", { uri = uri, keyword_casing = casing })
       end
 
       M.bind_keymaps(ev.buf)
@@ -611,6 +643,23 @@ function M.setup(opts)
     nargs = "?",
     complete = function() return supported_formats end,
     desc = "Get or set table format for current buffer",
+  })
+
+  local supported_casings = { "upper", "lower", "auto" }
+  M.supported_casings = supported_casings
+  vim.api.nvim_create_user_command("DBKeywordCasing", function(args)
+    if args.args and args.args ~= "" then
+      local val = args.args:lower()
+      vim.b.dbcli_keyword_casing = val
+      vim.notify("[dbcli] Keyword casing set to: " .. val, vim.log.levels.INFO)
+    else
+      local cur = M.get_buf_casing() or "(auto-detect)"
+      vim.notify("[dbcli] Current keyword casing: " .. cur, vim.log.levels.INFO)
+    end
+  end, {
+    nargs = "?",
+    complete = function() return supported_casings end,
+    desc = "Get or set keyword casing (upper, lower, auto) for current buffer",
   })
 end
 

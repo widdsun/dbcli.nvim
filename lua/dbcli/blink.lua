@@ -73,11 +73,13 @@ function source:get_completions(context, callback)
   cursor_pos = cursor_pos + cursor_col
 
   local db_uri = dbcli.get_buf_db(bufnr)
+  local keyword_casing = self.opts.keyword_casing or dbcli.get_buf_casing(bufnr)
 
   local req_id = dbcli.send_request("complete", {
     db = db_uri,
     text = text,
     cursor_pos = cursor_pos,
+    keyword_casing = keyword_casing,
   }, function(resp)
     if resp.status ~= "ok" or not resp.items then
       callback({ items = {} })

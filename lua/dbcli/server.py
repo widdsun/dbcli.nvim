@@ -498,8 +498,28 @@ def format_table(rows, headers, format_name: str = "psql") -> str:
     return "\n".join(lines)
 
 
+def get_backend_keyword_casing(db_type: str) -> Optional[str]:
+    """Read default keyword_casing from litecli / pgcli / mycli config if available."""
+    try:
+        if db_type == "sqlite":
+            from litecli.config import get_config
+            c = get_config()
+            return c.get("main", {}).get("keyword_casing")
+        elif db_type == "postgres":
+            from pgcli.config import get_config
+            c = get_config()
+            return c.get("main", {}).get("keyword_casing")
+        elif db_type == "mysql":
+            from mycli.config import get_config
+            c = get_config()
+            return c.get("main", {}).get("keyword_casing")
+    except Exception as e:
+        logger.debug(f"Could not load backend config for {db_type}: {e}")
+    return None
+
+
 class DBEngine:
-    def __init__(self, db_type: str, uri_or_path: str):
+    def __init__(self, db_type: str, uri_or_path: str, keyword_casing: Optional[str] = None):
         self.db_type = db_type
         self.uri = uri_or_path
         self.completer = None
@@ -507,7 +527,27 @@ class DBEngine:
         self.lock = threading.Lock()
         self.is_ready = False
         self.last_error = None
+        self.keyword_casing = self._resolve_keyword_casing(keyword_casing)
         self._init_completer()
+
+    def _resolve_keyword_casing(self, casing: Optional[str]) -> str:
+        if casing and str(casing).lower() in ("upper", "lower", "auto"):
+            return str(casing).lower()
+        backend_casing = get_backend_keyword_casing(self.db_type)
+        if backend_casing and str(backend_casing).lower() in ("upper", "lower", "auto"):
+            return str(backend_casing).lower()
+        return "upper"
+
+    def set_keyword_casing(self, casing: Optional[str]):
+        if not casing:
+            return
+        casing_norm = str(casing).lower()
+        if casing_norm not in ("upper", "lower", "auto"):
+            return
+        if self.keyword_casing != casing_norm:
+            self.keyword_casing = casing_norm
+            if self.completer and hasattr(self.completer, "keyword_casing"):
+                self.completer.keyword_casing = casing_norm
 
     def _init_completer(self):
         try:
@@ -531,22 +571,24 @@ class DBEngine:
             from pgcli.completion_refresher import CompletionRefresher
             
             conn_dsn = self.uri
-            self.completer = PGCompleter(smart_completion=True)
+            settings = {"keyword_casing": self.keyword_casing}
+            self.completer = PGCompleter(smart_completion=True, settings=settings)
             self.executor = PGExecute(dsn=conn_dsn)
             
             refresher = CompletionRefresher()
             def on_refreshed(new_completer):
                 with self.lock:
                     self.completer = new_completer
+                    self.completer.keyword_casing = self.keyword_casing
                     self.is_ready = True
                     logger.info(f"Postgres metadata refreshed for {self.uri}")
 
-            refresher.refresh(self.executor, None, [on_refreshed])
+            refresher.refresh(self.executor, None, [on_refreshed], settings=settings)
             self.is_ready = True
         except Exception as e:
             logger.warning(f"Postgres direct connect failed, using generic PG completer: {e}")
             from pgcli.pgcompleter import PGCompleter
-            self.completer = PGCompleter(smart_completion=True)
+            self.completer = PGCompleter(smart_completion=True, settings={"keyword_casing": self.keyword_casing})
             self.is_ready = True
 
     def _init_mysql(self):
@@ -556,7 +598,13 @@ class DBEngine:
             from mycli.completion_refresher import CompletionRefresher
 
             params = parse_mysql_uri(self.uri)
-            self.completer = SQLCompleter(smart_completion=True)
+            try:
+                self.completer = SQLCompleter(smart_completion=True, keyword_casing=self.keyword_casing)
+            except TypeError:
+                self.completer = SQLCompleter(smart_completion=True)
+                if hasattr(self.completer, "keyword_casing"):
+                    self.completer.keyword_casing = self.keyword_casing
+
             self.executor = SQLExecute(
                 database=params["database"],
                 user=params["user"],
@@ -569,6 +617,8 @@ class DBEngine:
             def on_refreshed(new_completer):
                 with self.lock:
                     self.completer = new_completer
+                    if hasattr(self.completer, "keyword_casing"):
+                        self.completer.keyword_casing = self.keyword_casing
                     self.is_ready = True
                     logger.info(f"MySQL metadata refreshed for {self.uri}")
 
@@ -597,7 +647,7 @@ class DBEngine:
             
             db_path = os.path.expanduser(db_path)
             self.executor = SQLExecute(db_path)
-            self.completer = SQLCompleter()
+            self.completer = SQLCompleter(keyword_casing=self.keyword_casing)
 
             # Populate metadata
             self.completer.extend_database_names(self.executor.databases())
@@ -614,29 +664,32 @@ class DBEngine:
                 pass
 
             self.is_ready = True
-            logger.info(f"SQLite metadata initialized for {db_path}")
+            logger.info(f"SQLite metadata initialized for {db_path} with keyword_casing={self.keyword_casing}")
         except Exception as e:
             logger.warning(f"SQLite init failed, using generic SQLite completer: {e}")
             from litecli.sqlcompleter import SQLCompleter
-            self.completer = SQLCompleter()
+            self.completer = SQLCompleter(keyword_casing=self.keyword_casing)
             self.is_ready = True
 
     def _init_generic(self):
         try:
             from litecli.sqlcompleter import SQLCompleter
-            self.completer = SQLCompleter()
-        except ImportError:
+            self.completer = SQLCompleter(keyword_casing=self.keyword_casing)
+        except Exception:
             try:
                 from pgcli.pgcompleter import PGCompleter
-                self.completer = PGCompleter(smart_completion=True)
-            except ImportError:
+                self.completer = PGCompleter(smart_completion=True, settings={"keyword_casing": self.keyword_casing})
+            except Exception:
                 self.completer = None
         self.is_ready = True
 
     def refresh(self):
         self._init_completer()
 
-    def get_completions(self, text: str, cursor_pos: int) -> List[Dict[str, Any]]:
+    def get_completions(self, text: str, cursor_pos: int, keyword_casing: Optional[str] = None) -> List[Dict[str, Any]]:
+        if keyword_casing:
+            self.set_keyword_casing(keyword_casing)
+
         if not self.completer:
             return []
         
@@ -806,13 +859,17 @@ class DBService:
             return "sqlite"
         return "sqlite"
 
-    def get_or_create_engine(self, uri: str) -> DBEngine:
+    def get_or_create_engine(self, uri: str, keyword_casing: Optional[str] = None) -> DBEngine:
         if not uri or uri == "":
+            if keyword_casing:
+                self.default_engine.set_keyword_casing(keyword_casing)
             return self.default_engine
         
         if uri not in self.engines:
             db_type = self.detect_db_type(uri)
-            self.engines[uri] = DBEngine(db_type, uri)
+            self.engines[uri] = DBEngine(db_type, uri, keyword_casing=keyword_casing)
+        elif keyword_casing:
+            self.engines[uri].set_keyword_casing(keyword_casing)
         return self.engines[uri]
 
     def handle_request(self, req: Dict[str, Any]) -> Dict[str, Any]:
@@ -825,13 +882,15 @@ class DBService:
         elif action == "connect":
             uri = req.get("uri") or req.get("url") or ""
             db_type = req.get("db_type") or self.detect_db_type(uri)
-            engine = DBEngine(db_type, uri)
+            keyword_casing = req.get("keyword_casing")
+            engine = DBEngine(db_type, uri, keyword_casing=keyword_casing)
             self.engines[uri] = engine
             return {
                 "id": req_id,
                 "status": "ok",
                 "db_type": db_type,
                 "uri": uri,
+                "keyword_casing": engine.keyword_casing,
                 "ready": engine.is_ready,
                 "error": engine.last_error,
             }
@@ -846,9 +905,10 @@ class DBService:
             uri = req.get("db") or req.get("uri") or ""
             text = req.get("text", "")
             cursor_pos = req.get("cursor_pos", len(text))
+            keyword_casing = req.get("keyword_casing")
             
-            engine = self.get_or_create_engine(uri)
-            items = engine.get_completions(text, cursor_pos)
+            engine = self.get_or_create_engine(uri, keyword_casing=keyword_casing)
+            items = engine.get_completions(text, cursor_pos, keyword_casing=keyword_casing)
             return {"id": req_id, "status": "ok", "items": items}
 
         elif action == "execute":
@@ -872,7 +932,7 @@ class DBService:
 
         elif action == "status":
             connections = [
-                {"uri": k, "db_type": v.db_type, "ready": v.is_ready}
+                {"uri": k, "db_type": v.db_type, "ready": v.is_ready, "keyword_casing": v.keyword_casing}
                 for k, v in self.engines.items()
             ]
             return {"id": req_id, "status": "ok", "connections": connections}

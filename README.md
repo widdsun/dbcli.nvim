@@ -152,6 +152,10 @@ require('dbcli').setup {
   -- Output table formatting style for query results
   table_format = 'psql',
 
+  -- Keyword casing style for SQL completion ('upper', 'lower', 'auto', or nil)
+  -- If nil, automatically reads ~/.config/litecli/config or ~/.config/pgcli/config, falling back to 'upper'
+  keyword_casing = 'upper',
+
   -- Results split window direction ('horizontal' or 'vertical')
   split_direction = 'horizontal',
 
@@ -193,7 +197,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 
 ### 4. Resolution & Override Hierarchy
 
-`dbcli.nvim` resolves database connections and table formats in the following order of precedence (highest to lowest):
+`dbcli.nvim` resolves database connections, table formats, and keyword casing in the following order of precedence (highest to lowest):
 
 #### Database Connection Precedence:
 1. **Buffer-local variable**: `vim.b.db` (set via `:DBConnect <uri>` or Lua `vim.b.db = ...`)
@@ -214,6 +218,14 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
    - `-- table_format: <format>`
 3. **Global / Plugin Config**: `vim.g.dbcli_table_format` or `opts.table_format` (defaults to `'psql'`)
 
+#### Keyword Casing Precedence (`keyword_casing`):
+1. **Buffer-local variable**: `vim.b.dbcli_keyword_casing` (set via `:DBKeywordCasing <upper|lower|auto>`)
+2. **File Header Comments**: First 15 lines of SQL buffer:
+   - `-- keyword_casing: upper`
+3. **Global / Plugin Config**: `vim.g.dbcli_keyword_casing` or `opts.keyword_casing`
+4. **Native Backend Config**: `~/.config/litecli/config` or `~/.config/pgcli/config` (`keyword_casing = upper`)
+5. **Fallback Default**: `'upper'`
+
 ---
 
 ### 5. User Commands
@@ -225,6 +237,7 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 | `:DBConnect <uri/path>` | Database URI or path | Binds the current buffer to a SQLite file or PostgreSQL connection. |
 | `:DBDisconnect` | *None* | Disconnects the current buffer from its bound database. |
 | `:DBFormat [format]` | Optional format name | Gets or sets the table output style for the current buffer (with tab-completion). |
+| `:DBKeywordCasing [casing]` | Optional casing (`upper`/`lower`/`auto`) | Gets or sets keyword casing for the current buffer (with tab-completion). |
 | `:DBRefresh` | *None* | Forces a metadata reload (tables, columns, functions) for the current database. |
 | `:DBStatus` | *None* | Displays active database connections, current buffer bindings, and table format. |
 
