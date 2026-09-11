@@ -204,18 +204,12 @@ All 34 formats supported by `cli_helpers` / `dbcli` (all available in `:DBFormat
 2. **`vim-dadbod-ui` binding**: `vim.b.db_ui_db_key_name`
 3. **File Header Comments**: First 15 lines of SQL buffer:
    - `-- db: <uri>`
-   - `-- db = <uri>`
-   - `-- database: <uri>`
-   - `-- DB: <uri>`
-   - `-- :DB <uri>`
 4. **Global Defaults**: `vim.g.dbcli_default_db` or `vim.g.db` or `opts.default_db`
 
 #### Table Format Precedence:
 1. **Buffer-local variable**: `vim.b.dbcli_format` (set via `:DBFormat <format>`)
 2. **File Header Comments**: First 15 lines of SQL buffer:
    - `-- format: <format>`
-   - `-- mode: <format>`
-   - `-- table_format: <format>`
 3. **Global / Plugin Config**: `vim.g.dbcli_table_format` or `opts.table_format` (defaults to `'psql'`)
 
 #### Keyword Casing Precedence (`keyword_casing`):

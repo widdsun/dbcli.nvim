@@ -178,13 +178,10 @@ function M.get_buf_db(bufnr)
     return db_ui
   end
 
-  -- 3. Scan first 15 lines of buffer for header comments
+  -- 3. Scan first 15 lines of buffer for header comments (-- db: <uri>)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, 15, false)
   for _, line in ipairs(lines) do
-    local url = line:match("^%s*%-%-%s*:?DB%s*=?%s*(%S+)")
-      or line:match("^%s*%-%-%s*db%s*:%s*(%S+)")
-      or line:match("^%s*%-%-%s*db%s*=%s*(%S+)")
-      or line:match("^%s*%-%-%s*database%s*:%s*(%S+)")
+    local url = line:match("^%s*%-%-%s*db%s*:%s*(%S+)")
     if url and url ~= "" then
       local norm = normalize_db_path(url)
       vim.b[bufnr].db = norm
@@ -209,12 +206,10 @@ function M.get_buf_format(bufnr)
   local b_fmt = vim.b[bufnr].dbcli_format
   if b_fmt and type(b_fmt) == "string" and b_fmt ~= "" then return b_fmt end
 
-  -- 2. Scan first 15 lines of buffer for header comments (-- format: xxx or -- mode: xxx)
+  -- 2. Scan first 15 lines of buffer for header comments (-- format: <format>)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, 15, false)
   for _, line in ipairs(lines) do
     local fmt = line:match("^%s*%-%-%s*format%s*:%s*(%S+)")
-      or line:match("^%s*%-%-%s*mode%s*:%s*(%S+)")
-      or line:match("^%s*%-%-%s*table_format%s*:%s*(%S+)")
     if fmt and fmt ~= "" then return fmt end
   end
 
@@ -233,10 +228,10 @@ function M.get_buf_casing(bufnr)
     return b_casing:lower()
   end
 
-  -- 2. Scan first 15 lines of buffer for header comments (-- keyword_casing: upper)
+  -- 2. Scan first 15 lines of buffer for header comments (-- keyword_casing: <casing>)
   local lines = vim.api.nvim_buf_get_lines(bufnr, 0, 15, false)
   for _, line in ipairs(lines) do
-    local casing = line:match("^%s*%-%-%s*keyword_casing%s*[:=]%s*(%S+)")
+    local casing = line:match("^%s*%-%-%s*keyword_casing%s*:%s*(%S+)")
     if casing and casing ~= "" then
       return casing:lower()
     end
